@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  phone         String?   @unique
+  name          String
+  role          String      @default("USER")
+  solanaAddress String?   @unique
+  upiId         String?
+  kycStatus     String @default("PENDING")
+  kycData       String?
+  transactions  Transaction[]
+  aiInsights    AiInsight[]
+  subscriptions Subscription[]
+  automationRules AutomationRule[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Merchant {
+  id            String    @id @default(cuid())
+  businessName  String
+  email         String    @unique
+  phone         String
+  solanaAddress String    @unique
+  apiKey        String    @unique
+  webhookUrl    String?
+  transactions  Transaction[]
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Transaction {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  merchantId    String
+  merchant      Merchant  @relation(fields: [merchantId], references: [id])
+  amountINR     Float
+  amountUSDC    Float
+  conversionRate Float
+  upiTxnId      String?   @unique
+  upiStatus     String?
+  solanaTxHash  String?   @unique
+  solanaStatus  String?
+  status        String  @default("PENDING")
+  category      String?
+  description   String?
+  metadata      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([merchantId, createdAt])
+}
+
+model AiInsight {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  type          String
+  title         String
+  description   String
+  data          String
+  actionTaken   Boolean   @default(false)
+  actionData    String?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, type, createdAt])
+}
+
+model Subscription {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  name          String
+  amount        Float
+  frequency     String
+  nextDueDate   DateTime
+  isActive      Boolean   @default(true)
+  autoPayEnabled Boolean  @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model AutomationRule {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  type          String
+  name          String
+  description   String?
+  config        String?     // e.g. { "percentage": 10, "maxAmount": 500 }
+  isActive      Boolean   @default(true)
+  lastRunAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId, isActive])
+}
+
