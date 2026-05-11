@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../common/prisma.service';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AuthService {
@@ -9,32 +10,53 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string): Promise<any> {
-    const user = await // @ts-ignore
-    this.prisma.user.findUnique({ where: { email } });
-    if (user) return user;
+  private hashPassword(password: string): string {
+    return crypto.createHash('sha256').update(password).digest('hex');
+  }
+
+  async validateUser(email: string, password: string): Promise<any> {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user && user.password === this.hashPassword(password)) {
+      const { password: _, ...result } = user;
+      return result;
+    }
     return null;
   }
 
-  async login(email: string) {
-    const user = await this.validateUser(email);
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+  async validateUserById(userId: string): Promise<any> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (user) {
+      const { password: _, ...result } = user;
+      return result;
+    }
+    return null;
+  }
+
+  async login(email: string, password: string) {
+    const user = await this.validateUser(email, password);
+    if (!user) throw new UnauthorizedException('Invalid email or password');
     
     const payload = { sub: user.id, email: user.email, role: user.role };
     return {
       access_token: this.jwtService.sign(payload),
-      user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, solanaAddress: user.solanaAddress },
     };
   }
 
-  async register(email: string, name: string, phone?: string) {
-    const existing = await // @ts-ignore
-    this.prisma.user.findUnique({ where: { email } });
-    if (existing) throw new UnauthorizedException('User already exists');
+  async register(email: string, password: string, name: string, phone?: string) {
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) throw new ConflictException('User with this email already exists');
     
-    const user = await // @ts-ignore
-    this.prisma.user.create({
-      data: { email, name, phone, role: 'USER' as any },
+    const hashedPassword = this.hashPassword(password);
+    
+    const user = await this.prisma.user.create({
+      data: { 
+        email, 
+        password: hashedPassword,
+        name, 
+        phone, 
+        role: 'USER' 
+      },
     });
     
     const payload = { sub: user.id, email: user.email, role: user.role };
@@ -42,5 +64,12 @@ export class AuthService {
       access_token: this.jwtService.sign(payload),
       user: { id: user.id, email: user.email, name: user.name, role: user.role },
     };
+  }
+
+  async updateSolanaAddress(userId: string, solanaAddress: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { solanaAddress },
+    });
   }
 }

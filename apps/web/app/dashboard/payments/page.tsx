@@ -1,16 +1,10 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { motion, Variants } from 'framer-motion'
-import { Send, Plus, Download, ArrowRight, Clock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react'
+import { Send, Plus, Download, ArrowRight, Clock, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
 import { paymentsApi } from '@/lib/api'
-
-const recentPayments = [
-  { id: 1, recipient: 'Alice Johnson', amount: 0.5, asset: 'SOL', date: '2024-02-15', status: 'completed' },
-  { id: 2, recipient: 'Bob Smith', amount: 250, asset: 'USDC', date: '2024-02-14', status: 'completed' },
-  { id: 3, recipient: 'Charlie Wilson', amount: 1000, asset: 'USDC', date: '2024-02-14', status: 'pending' },
-  { id: 4, recipient: 'Diana Lee', amount: 0.25, asset: 'SOL', date: '2024-02-13', status: 'completed' },
-]
 
 const templates = [
   { id: 1, name: 'Monthly Salary', recipient: 'Company Account', amount: 5000 },
@@ -18,20 +12,33 @@ const templates = [
   { id: 3, name: 'Freelance Payment', recipient: 'Contractor Pool', amount: 1000 },
 ]
 
+const isAuthenticated = () => {
+  if (typeof window === 'undefined') return false
+  return !!localStorage.getItem('token')
+}
+
 export default function PaymentsPage() {
   const [showSendModal, setShowSendModal] = useState(false)
   const [transactions, setTransactions] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
   const [formData, setFormData] = useState({ recipient: '', asset: 'SOL', amount: '', description: '' })
 
   useEffect(() => {
     const fetchTransactions = async () => {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setIsLoading(false)
+        return
+      }
       try {
         const txs = await paymentsApi.getTransactions()
         setTransactions(txs.data || [])
-      } catch (e) {
-        console.error("Failed to load transactions", e)
+      } catch (e: any) {
+        if (e?.response?.status !== 401) {
+          console.error("Failed to load transactions", e)
+        }
       } finally {
         setIsLoading(false)
       }
@@ -39,12 +46,26 @@ export default function PaymentsPage() {
     fetchTransactions()
   }, [])
 
+  const handleSendPaymentClick = () => {
+    if (!isAuthenticated()) {
+      setShowLoginPrompt(true)
+      setTimeout(() => setShowLoginPrompt(false), 4000)
+      return
+    }
+    setShowSendModal(true)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isAuthenticated()) {
+      setShowLoginPrompt(true)
+      setTimeout(() => setShowLoginPrompt(false), 4000)
+      return
+    }
     setIsSubmitting(true)
     try {
       await paymentsApi.createPayment({
-        merchantId: formData.recipient || 'clfz01...mock...', // MOCKED
+        merchantId: formData.recipient || 'clfz01...mock...',
         amount: Number(formData.amount),
         description: formData.description,
         targetChain: 'SOLANA',
@@ -56,8 +77,13 @@ export default function PaymentsPage() {
       
       const updated = await paymentsApi.getTransactions()
       setTransactions(updated.data || [])
-    } catch (e) {
-      console.error("Payment error", e)
+    } catch (e: any) {
+      if (e?.response?.status === 401) {
+        setShowLoginPrompt(true)
+        setTimeout(() => setShowLoginPrompt(false), 4000)
+      } else {
+        console.error("Payment error", e)
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -82,7 +108,6 @@ export default function PaymentsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-8">
-      {/* Header */}
       <motion.div
         className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
         variants={containerVariants}
@@ -93,17 +118,23 @@ export default function PaymentsPage() {
           <h1 className="text-3xl sm:text-4xl font-bold text-foreground">Payments</h1>
           <p className="text-foreground-secondary mt-1">Send and receive cryptocurrencies instantly</p>
         </motion.div>
-        <motion.button
-          variants={itemVariants}
-          onClick={() => setShowSendModal(true)}
-          className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary-dark transition-colors w-full sm:w-auto"
-        >
-          <Send size={20} />
-          Send Payment
-        </motion.button>
+        <motion.div variants={itemVariants} className="flex items-center gap-3">
+          {showLoginPrompt && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 text-sm animate-pulse">
+              <AlertCircle size={16} />
+              <Link href="/login" className="underline font-medium">Sign in</Link> to make payments
+            </div>
+          )}
+          <button
+            onClick={handleSendPaymentClick}
+            className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-primary text-primary-foreground font-semibold hover:bg-primary-dark transition-colors w-full sm:w-auto"
+          >
+            <Send size={20} />
+            Send Payment
+          </button>
+        </motion.div>
       </motion.div>
 
-      {/* Quick Stats */}
       <motion.div
         className="grid md:grid-cols-3 gap-6"
         variants={containerVariants}
@@ -111,9 +142,9 @@ export default function PaymentsPage() {
         animate="visible"
       >
         {[
-          { label: 'Payments Today', value: '$2,450.50', icon: '↓' },
-          { label: 'Monthly Total', value: '$8,920.00', icon: '↑' },
-          { label: 'Avg. Transaction', value: '$342.31', icon: '→' },
+          { label: 'Payments Today', value: '$2,450.50' },
+          { label: 'Monthly Total', value: '$8,920.00' },
+          { label: 'Avg. Transaction', value: '$342.31' },
         ].map((stat, i) => (
           <motion.div
             key={i}
@@ -126,7 +157,6 @@ export default function PaymentsPage() {
         ))}
       </motion.div>
 
-      {/* Send Modal */}
       {showSendModal && (
         <motion.div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
@@ -161,11 +191,15 @@ export default function PaymentsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-foreground block mb-2">Asset</label>
-                  <select className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
-                    <option>SOL</option>
-                    <option>USDC</option>
-                    <option>JUP</option>
-                    <option>ORCA</option>
+                  <select 
+                    value={formData.asset}
+                    onChange={(e) => setFormData({...formData, asset: e.target.value})}
+                    className="w-full px-4 py-2.5 rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="SOL">SOL</option>
+                    <option value="USDC">USDC</option>
+                    <option value="JUP">JUP</option>
+                    <option value="ORCA">ORCA</option>
                   </select>
                 </div>
                 <div>
@@ -213,7 +247,6 @@ export default function PaymentsPage() {
         </motion.div>
       )}
 
-      {/* Templates */}
       <motion.div
         variants={itemVariants}
         className="space-y-4"
@@ -229,6 +262,12 @@ export default function PaymentsPage() {
           {templates.map((template) => (
             <div
               key={template.id}
+              onClick={() => {
+                if (!isAuthenticated()) {
+                  setShowLoginPrompt(true)
+                  setTimeout(() => setShowLoginPrompt(false), 4000)
+                }
+              }}
               className="rounded-xl border border-border bg-secondary/30 p-6 hover:border-primary transition-colors cursor-pointer group"
             >
               <h3 className="font-semibold text-foreground mb-2">{template.name}</h3>
@@ -244,7 +283,6 @@ export default function PaymentsPage() {
         </div>
       </motion.div>
 
-      {/* Recent Payments */}
       <motion.div
         variants={itemVariants}
         className="rounded-xl border border-border bg-secondary/30 p-6"
@@ -289,7 +327,10 @@ export default function PaymentsPage() {
               </div>
             </div>
           )) : (
-            <p className="text-sm text-foreground-secondary italic">No payments found.</p>
+            <div className="text-center py-12 space-y-2">
+              <p className="text-foreground-secondary font-medium">No payments found</p>
+              <p className="text-sm text-foreground-secondary/70">Sign in to view your payment history</p>
+            </div>
           )}
         </div>
       </motion.div>

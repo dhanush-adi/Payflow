@@ -27,6 +27,12 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     const fetchAnalytics = async () => {
+      // Skip if not authenticated
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setIsLoading(false)
+        return
+      }
       try {
         const transactions = await paymentsApi.getTransactions(50, 0)
         
@@ -40,8 +46,11 @@ export default function AnalyticsPage() {
           avgTx,
           txCount: transactions.length
         })
-      } catch (err) {
-        console.error('Failed to fetch analytics:', err)
+      } catch (err: any) {
+        // Silently handle 401 - user not authenticated
+        if (err?.response?.status !== 401) {
+          console.error('Failed to fetch analytics:', err)
+        }
       } finally {
         setIsLoading(false)
       }

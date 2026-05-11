@@ -13,14 +13,14 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'User login' })
   async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto.email);
+    return this.authService.login(dto.email, dto.password);
   }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'User registration' })
   async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto.email, dto.name, dto.phone);
+    return this.authService.register(dto.email, dto.password, dto.name, dto.phone);
   }
 
   @Get('me')
@@ -28,6 +28,14 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get current user profile' })
   async getProfile(@Request() req: any) {
-    return this.authService.validateUser(req.user.email);
+    return this.authService.validateUserById(req.user.userId || req.user.sub);
+  }
+
+  @Post('wallet')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Link Solana wallet address' })
+  async linkWallet(@Body() body: { solanaAddress: string }, @Request() req: any) {
+    return this.authService.updateSolanaAddress(req.user.userId || req.user.sub, body.solanaAddress);
   }
 }

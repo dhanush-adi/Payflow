@@ -11,11 +11,20 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const fetchProfile = async () => {
+      // Skip if not authenticated
+      const token = localStorage.getItem('token')
+      if (!token) {
+        setIsLoading(false)
+        return
+      }
       try {
         const data = await authApi.getProfile()
         setUser(data)
-      } catch (err) {
-        console.error('Failed to fetch profile:', err)
+      } catch (err: any) {
+        // Silently handle 401 - user not authenticated
+        if (err?.response?.status !== 401) {
+          console.error('Failed to fetch profile:', err)
+        }
       } finally {
         setIsLoading(false)
       }

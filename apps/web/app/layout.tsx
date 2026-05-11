@@ -1,49 +1,45 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
-
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+import { Toaster } from '@/components/ui/toaster'
+import { ThemeProvider } from '@/components/theme-provider'
+import { Providers } from '@/components/providers/auth-provider'
+import { PhantomProvider } from '@/components/providers/phantom-provider'
 
 export const metadata: Metadata = {
-  title: 'SolanaVault - Crypto Wallet & Trading Platform',
-  description: 'Professional Solana wallet with real-time portfolio tracking, AI trading assistant, and advanced analytics',
-  generator: 'v0.app',
+  title: 'PayFlow - UPI to Crypto Payment Infrastructure',
+  description: 'The hybrid payment system that bridges UPI and crypto. Users pay with INR via UPI while merchants receive USDC on Solana, powered by AI financial automation.',
+  keywords: ['UPI', 'crypto', 'payments', 'Solana', 'USDC', 'India', 'fintech', 'blockchain'],
   icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
-  },
-  viewport: {
-    width: 'device-width',
-    initialScale: 1,
-    maximumScale: 1,
+    icon: '/favicon.ico',
   },
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
-    <html lang="en" className="dark bg-background">
-      <body className="font-sans antialiased">
-        {children}
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+      </head>
+      <body className="antialiased font-sans">
+        <PhantomProvider>
+          <Providers>
+            <ThemeProvider
+              attribute="class"
+              defaultTheme="dark"
+              enableSystem
+              disableTransitionOnChange
+            >
+              {children}
+              <Toaster />
+            </ThemeProvider>
+          </Providers>
+        </PhantomProvider>
       </body>
     </html>
   )

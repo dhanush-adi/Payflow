@@ -1,141 +1,164 @@
-import { PrismaClient, Role, KycStatus, TxStatus, InsightType, Frequency } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import * as crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log('Seeding database...');
+function hashPassword(password: string): string {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
 
-  const demoUser = await prisma.user.upsert({
-    where: { email: 'user@payflow.ai' },
+async function main() {
+  console.log('🌱 Seeding database...');
+
+  // Create demo user
+  const user = await prisma.user.upsert({
+    where: { email: 'demo@payflow.ai' },
     update: {},
     create: {
-      email: 'user@payflow.ai',
-      phone: '+919999999999',
-      name: 'Demo User',
-      role: Role.USER,
-      solanaAddress: 'DemoSolanaAddress123456789',
-      upiId: 'demo@payflow',
-      kycStatus: KycStatus.APPROVED,
+      email: 'demo@payflow.ai',
+      password: hashPassword('demo123'),
+      name: 'Rahul Mehta',
+      phone: '+919876543210',
+      role: 'USER',
+      kycStatus: 'APPROVED',
+      solanaAddress: '7xKXjg2e3VWsk1x2zddS7pDhJvDkBnP3mC5vC5cWjQ8Z',
+      upiId: 'rahul@payflow',
     },
   });
+  console.log('✅ Created demo user:', user.email);
 
-  const demoMerchant = await prisma.merchant.upsert({
+  // Create demo merchant
+  const merchant = await prisma.merchant.upsert({
     where: { email: 'merchant@payflow.ai' },
     update: {},
     create: {
-      businessName: 'Demo Merchant',
       email: 'merchant@payflow.ai',
-      phone: '+919999999998',
-      solanaAddress: 'MerchantSolanaAddress12345678',
-      apiKey: 'pk_test_demo_merchant_key_12345',
+      businessName: 'TechMart India',
+      phone: '+919876543211',
+      solanaAddress: '9fkj2Kjg2e3VWsk1x2zddS7pDhJvDkBnP3mC5vC5cWjQ8Z',
+      apiKey: 'mk_live_demo_' + crypto.randomBytes(16).toString('hex'),
       isActive: true,
     },
   });
+  console.log('✅ Created demo merchant:', merchant.businessName);
 
-  const transactions = [
-    {
-      userId: demoUser.id,
-      merchantId: demoMerchant.id,
-      amountINR: 500,
-      amountUSDC: 6.02,
-      conversionRate: 0.01204,
-      status: TxStatus.COMPLETED,
-      category: 'FOOD',
-      description: 'Coffee and snacks',
-      upiTxnId: 'UPI1234567890',
-      upiStatus: 'SUCCESS',
-      solanaTxHash: 'sol_test_hash_abc123',
-      solanaStatus: 'CONFIRMED',
-    },
-    {
-      userId: demoUser.id,
-      merchantId: demoMerchant.id,
-      amountINR: 1200,
-      amountUSDC: 14.45,
-      conversionRate: 0.01204,
-      status: TxStatus.COMPLETED,
-      category: 'SHOPPING',
-      description: 'Clothing',
-      upiTxnId: 'UPI0987654321',
-      upiStatus: 'SUCCESS',
-      solanaTxHash: 'sol_test_hash_def456',
-      solanaStatus: 'CONFIRMED',
-    },
-    {
-      userId: demoUser.id,
-      merchantId: demoMerchant.id,
-      amountINR: 2500,
-      amountUSDC: 30.10,
-      conversionRate: 0.01204,
-      status: TxStatus.PENDING,
-      category: 'TRANSPORT',
-      description: 'Taxi fare',
-    },
+  // Create demo transactions
+  const categories = ['Food & Dining', 'Shopping', 'Travel', 'Subscriptions', 'Entertainment'];
+  const descriptions = [
+    'Zomato order - Biryani',
+    'Amazon purchase - Electronics',
+    'Uber ride to airport',
+    'Netflix subscription',
+    'Spotify Premium',
+    'Swiggy order - Pizza',
+    'Myntra - Clothing',
+    'Ola cab ride',
+    'Hotstar VIP',
+    'Flipkart order',
   ];
 
-  for (const tx of transactions) {
-    await prisma.transaction.upsert({
-      where: { upiTxnId: tx.upiTxnId || 'pending_' + Math.random().toString(36) },
-      update: {},
-      create: tx,
+  for (let i = 0; i < 20; i++) {
+    const inrAmount = Math.floor(Math.random() * 5000) + 100;
+    const rate = 83.45;
+    const usdcAmount = inrAmount / rate;
+    
+    await prisma.transaction.create({
+      data: {
+        userId: user.id,
+        merchantId: merchant.id,
+        amountINR: inrAmount,
+        amountUSDC: usdcAmount,
+        conversionRate: rate,
+        upiTxnId: `UPI${Date.now().toString(36).toUpperCase()}${i}`,
+        upiStatus: 'SUCCESS',
+        solanaTxHash: `mock_tx_${crypto.randomBytes(8).toString('hex')}`,
+        solanaStatus: 'CONFIRMED',
+        status: 'COMPLETED',
+        category: categories[Math.floor(Math.random() * categories.length)],
+        description: descriptions[Math.floor(Math.random() * descriptions.length)],
+        createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000),
+      },
     });
   }
+  console.log('✅ Created 20 demo transactions');
 
+  // Create AI Insights
   const insights = [
-    {
-      userId: demoUser.id,
-      type: InsightType.SPENDING_ALERT,
-      title: 'High spending on Food',
-      description: 'Your food expenses increased by 25% this month compared to last month.',
-      data: { category: 'FOOD', change: 25, threshold: 20 },
-      actionTaken: false,
-    },
-    {
-      userId: demoUser.id,
-      type: InsightType.SAVINGS_SUGGESTION,
-      title: 'Save ₹5,000 monthly',
-      description: 'Based on your spending pattern, you could save ₹5,000 by reducing subscription services.',
-      data: { potentialSavings: 5000, subscriptions: 3 },
-      actionTaken: false,
-    },
+    { type: 'SPENDING_ALERT', title: 'High Spending Alert', description: 'Your spending this week is 25% higher than usual. Consider reviewing your discretionary purchases.' },
+    { type: 'SAVINGS_SUGGESTION', title: 'Auto-Save Opportunity', description: 'You could save ₹1,250/month by enabling Auto-Round-Up. Every ₹10 spent, ₹1 saved automatically.' },
+    { type: 'SUBSCRIPTION_ALERT', title: 'Subscription Found', description: 'We detected 3 recurring subscriptions: Netflix, Spotify, and Amazon Prime. Total: ₹799/month' },
+    { type: 'INVESTMENT_TIP', title: 'Investment Opportunity', description: 'Based on your transaction patterns, consider setting aside 10% of income for investments.' },
+    { type: 'BUDGET_WARNING', title: 'Budget Limit Warning', description: 'You\'ve used 85% of your monthly Food & Dining budget with 15 days remaining.' },
   ];
 
   for (const insight of insights) {
-    await prisma.aiInsight.create({ data: insight });
+    await prisma.aiInsight.create({
+      data: {
+        userId: user.id,
+        type: insight.type,
+        title: insight.title,
+        description: insight.description,
+        data: JSON.stringify({ detected: true, source: 'ai-analysis' }),
+      },
+    });
   }
+  console.log('✅ Created 5 AI insights');
 
+  // Create Subscriptions
   const subscriptions = [
-    {
-      userId: demoUser.id,
-      name: 'Netflix',
-      amount: 499,
-      frequency: Frequency.MONTHLY,
-      nextDueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
-      isActive: true,
-      autoPayEnabled: false,
-    },
-    {
-      userId: demoUser.id,
-      name: 'Spotify',
-      amount: 299,
-      frequency: Frequency.MONTHLY,
-      nextDueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      isActive: true,
-      autoPayEnabled: true,
-    },
+    { name: 'Netflix Premium', amount: 199, frequency: 'MONTHLY' },
+    { name: 'Spotify Premium', amount: 129, frequency: 'MONTHLY' },
+    { name: 'Amazon Prime', amount: 299, frequency: 'YEARLY' },
+    { name: 'Hotstar VIP', amount: 899, frequency: 'YEARLY' },
+    { name: 'Gym Membership', amount: 1500, frequency: 'MONTHLY' },
   ];
 
   for (const sub of subscriptions) {
-    await prisma.subscription.create({ data: sub });
+    await prisma.subscription.create({
+      data: {
+        userId: user.id,
+        name: sub.name,
+        amount: sub.amount,
+        frequency: sub.frequency,
+        nextDueDate: new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000),
+        isActive: true,
+        autoPayEnabled: Math.random() > 0.5,
+      },
+    });
   }
+  console.log('✅ Created subscriptions');
 
-  console.log('Database seeded successfully!');
-  console.log({ demoUser: demoUser.id, demoMerchant: demoMerchant.id });
+  // Create Automation Rules
+  const rules = [
+    { type: 'ROUND_UP', name: 'Auto Round-up Savings', description: 'Round every transaction to nearest ₹10', config: JSON.stringify({ percentage: 10, maxAmount: 100 }) },
+    { type: 'PERCENTAGE', name: '10% Investment Rule', description: 'Auto-invest 10% of every settlement', config: JSON.stringify({ percentage: 10 }) },
+    { type: 'RESERVE', name: 'Emergency Fund', description: 'Set aside 5% for emergencies', config: JSON.stringify({ percentage: 5, wallet: 'emergency_vault' }) },
+  ];
+
+  for (const rule of rules) {
+    await prisma.automationRule.create({
+      data: {
+        userId: user.id,
+        type: rule.type,
+        name: rule.name,
+        description: rule.description,
+        config: rule.config,
+        isActive: Math.random() > 0.5,
+        lastRunAt: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000),
+      },
+    });
+  }
+  console.log('✅ Created automation rules');
+
+  console.log('\n🎉 Database seeded successfully!');
+  console.log('\n📋 Demo Credentials:');
+  console.log('   Email: demo@payflow.ai');
+  console.log('   Password: demo123');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('Error seeding database:', e);
     process.exit(1);
   })
   .finally(async () => {

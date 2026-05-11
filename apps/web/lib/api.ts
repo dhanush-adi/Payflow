@@ -2,7 +2,6 @@ import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
-// Create a configured axios instance
 export const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -11,7 +10,6 @@ export const api = axios.create({
   withCredentials: true,
 });
 
-// Intercept requests to inject the authorization token if available
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
@@ -22,58 +20,48 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Intercept responses to handle auth errors globally
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
-        // Let the components handle the redirect, or we can force redirect here:
-        // window.location.href = '/login';
+        localStorage.removeItem('user');
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);
   }
 );
 
-// ----------------------------------------------------
-// Service Hooks & API Definitions
-// ----------------------------------------------------
-
 export const authApi = {
-  login: async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
-    return response.data;
-  },
-  register: async (email: string, password: string, name?: string) => {
-    const response = await api.post('/auth/register', { email, password, name });
-    return response.data;
-  },
-  getProfile: async () => {
-    const response = await api.get('/auth/me');
-    return response.data;
-  },
+  login: (email: string, password: string) => api.post('/auth/login', { email, password }),
+  register: (data: any) => api.post('/auth/register', data),
+  profile: () => api.get('/auth/profile'),
+  updateProfile: (data: any) => api.patch('/auth/profile', data),
+  logout: () => api.post('/auth/logout'),
 };
 
 export const paymentsApi = {
-  getTransactions: async (limit = 10, offset = 0) => {
-    const response = await api.get('/payments/my', { params: { limit, offset } });
-    return response.data;
-  },
-  createPayment: async (data: { amount: number; merchantId: string; description?: string }) => {
-    const response = await api.post('/payments', data);
-    return response.data;
-  },
-  simulateSuccess: async (id: string) => {
-    const response = await api.post(`/payments/${id}/simulate-success`);
-    return response.data;
-  },
+  create: (data: any) => api.post('/payments', data),
+  getAll: (params?: any) => api.get('/payments', { params }),
+  getById: (id: string) => api.get(`/payments/${id}`),
+  update: (id: string, data: any) => api.patch(`/payments/${id}`, data),
+  cancel: (id: string) => api.delete(`/payments/${id}`),
+  verifyUPI: (upiId: string) => api.get(`/payments/verify-upi/${upiId}`),
 };
 
 export const aiApi = {
-  getInsights: async () => {
-    const response = await api.get('/ai/insights');
-    return response.data;
-  },
+  chat: (message: string) => api.post('/ai/chat', { message }),
+  insights: () => api.get('/ai/insights'),
+  suggest: (context: string) => api.post('/ai/suggest', { context }),
 };
+
+export const cryptoApi = {
+  getBalance: (address: string) => api.get(`/blockchain/balance/${address}`),
+  getTransactions: (address: string) => api.get(`/blockchain/transactions/${address}`),
+  send: (data: any) => api.post('/blockchain/send', data),
+  swap: (data: any) => api.post('/blockchain/swap', data),
+};
+
+export default api;
